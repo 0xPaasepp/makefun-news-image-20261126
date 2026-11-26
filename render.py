@@ -1,5 +1,9 @@
-# render.py — builds entry.png (1024x1024) for news-image-20261126.
+# render.py — builds entry.png (1024x1024) for news-image-20261126 v2.
 # Run: python3 render.py  (writes entry.png next to this file)
+# v2 vs v1: Hormuz mine strikes replace Tiangong as lead 3 (Tiangong drops
+# to mini 4); new minis are Russia's record military budget and the Solomon
+# Islands–Australia treaty; 8 new ALSO items; map dots re-nudged to spread
+# the crowded Middle East cluster; lead heads 28pt, mini heads 15pt.
 # Uses Pillow at BUILD time only. The entry program (main.py) is stdlib-only
 # and copies the pre-rendered entry.png byte-for-byte; it never imports this.
 # All text is rendered with real Liberation glyphs. All drawings are original
@@ -74,7 +78,10 @@ def fit_lines(draw, text, font, max_w, max_lines):
     """Wrap text; if it exceeds max_lines, shorten with ellipsis."""
     lines = wrap(draw, text, font, max_w)
     while len(lines) > max_lines and len(text) > 10:
-        text = text.rsplit(" ", 1)[0] + " …"
+        new = text.rsplit(" ", 1)[0] + " …"
+        if new == text:  # lone "…" line: trimming cannot shorten further
+            break
+        text = new
         lines = wrap(draw, text, font, max_w)
     return lines
 
@@ -147,20 +154,23 @@ CONTINENTS = [
 
 # Story dots: (number, lat, lon, nudge_dx_px, nudge_dy_px).
 # Nudges keep close dots apart; a thin line links a nudged dot to its place.
+# Middle East is crowded (Cairo/Gaza/Tehran/Ras Tanura/Hormuz): Cairo goes
+# down-left, Gaza up-right, Ras Tanura down-left, Hormuz up-right. Moscow
+# is nudged off Kyiv; the second New York dot off the first.
 DOTS = [
     (1, 38.9, -77.0, -14, -10),  # Washington — nudged off New York
-    (2, 30.0, 31.2, 0, 0),       # Cairo — tanker fire
-    (3, 39.9, 116.4, 0, 0),      # Beijing — Tiangong
-    (4, 26.6, 50.2, 0, 12),      # Ras Tanura — nudged down off Tehran
-    (5, 40.7, -74.0, 0, 0),      # New York — Nasdaq
-    (6, 50.4, 30.5, 0, 0),       # Kyiv — Ukraine strikes
-    (7, 35.7, 51.4, 0, 0),       # Tehran — US warning
-    (8, 31.5, 34.5, 20, -18),    # Gaza — nudged off Cairo's dot
-    (9, 50.8, 4.4, 0, 0),        # Brussels — EU budget
-    (10, 37.6, 127.0, 10, -8),   # Seoul — nudged off Beijing's dot
-    (11, 40.7, -74.0, 12, -9),   # New York — Macy's parade, nudged off 5
-    (12, 22.3, 114.2, 0, 0),     # Hong Kong — fire anniversary
-    (13, 27.7, 85.3, 0, 0),      # Kathmandu — Nepal missing
+    (2, 30.0, 31.2, -18, 12),    # Cairo — nudged down-left off Gaza
+    (3, 26.5, 56.3, 16, -6),     # Strait of Hormuz — nudged off Tehran
+    (4, 39.9, 116.4, 0, 0),      # Beijing — Tiangong
+    (5, 26.6, 50.2, -12, 8),     # Ras Tanura — nudged down-left
+    (6, 40.7, -74.0, 0, 0),      # New York — Nasdaq
+    (7, 50.4, 30.5, -10, 6),     # Kyiv — nudged off Moscow
+    (8, 35.7, 51.4, 0, 0),       # Tehran — US warning
+    (9, 31.5, 34.5, 26, -20),    # Gaza — nudged up-right off Cairo
+    (10, 55.8, 37.6, 12, -8),    # Moscow — nudged off Kyiv
+    (11, 50.8, 4.4, 0, 0),       # Brussels — EU budget
+    (12, -9.6, 160.0, 0, 0),     # Honiara — Solomon Islands treaty
+    (13, 40.7, -74.0, 14, -10),  # New York — Macy's parade, nudged off 6
 ]
 
 
@@ -322,6 +332,58 @@ def illu_space(d, x, y, w, h):
                 outline=INK, width=1)
 
 
+def illu_hormuz(d, x, y, w, h):
+    """Strait of Hormuz at night: tanker, mine blast, smoke, warning mine."""
+    d.rectangle([x, y, x + w, y + h * 0.52], fill=(24, 32, 58))
+    d.rectangle([x, y + h * 0.52, x + w, y + h], fill=(16, 54, 86))
+    # moon
+    d.ellipse([x + w - 56, y + 10, x + w - 26, y + 40], fill=(240, 230, 200))
+    # distant shore lights
+    for lx in range(10, int(w) - 10, 26):
+        d.rectangle([x + lx, y + h * 0.48, x + lx + 6, y + h * 0.52],
+                    fill=(245, 200, 60))
+    # tanker hull
+    d.polygon([(x + 14, y + h * 0.60), (x + w - 14, y + h * 0.60),
+               (x + w - 44, y + h * 0.86), (x + 44, y + h * 0.86)],
+              fill=(20, 20, 24))
+    d.rectangle([x + 14, y + h * 0.60, x + w - 14, y + h * 0.66],
+                fill=(176, 30, 36))
+    # deck tanks: three low steel drums sitting on the deck line
+    for i in range(3):
+        tx = x + 40 + i * 72
+        d.rounded_rectangle([tx, y + h * 0.50, tx + 58, y + h * 0.60],
+                            radius=8, fill=(150, 158, 168), outline=INK,
+                            width=2)
+        d.line([(tx + 8, y + h * 0.53), (tx + 50, y + h * 0.53)],
+               fill=(110, 118, 128), width=1)
+    # bridge tower
+    d.rectangle([x + w - 58, y + h * 0.34, x + w - 26, y + h * 0.60],
+                fill=(240, 240, 235), outline=INK, width=1)
+    # blast above the middle tank
+    bx, by = x + w * 0.46, y + h * 0.46
+    d.polygon([(bx - 40, by + 12), (bx - 16, by - 40), (bx, by - 10),
+               (bx + 18, by - 46), (bx + 40, by + 12)], fill=ORANGE)
+    d.polygon([(bx - 22, by + 12), (bx - 8, by - 22), (bx + 8, by - 2),
+               (bx + 22, by + 12)], fill=YELLOW)
+    # smoke
+    for sx, sy, sr in [(bx - 34, by - 40, 13), (bx + 4, by - 58, 16),
+                       (bx + 38, by - 42, 12)]:
+        d.ellipse([sx - sr, sy - sr, sx + sr, sy + sr], fill=(90, 90, 96))
+    # spiked mine, lower right
+    mx, my = x + w - 42, y + h - 26
+    d.ellipse([mx - 12, my - 12, mx + 12, my + 12], fill=(30, 30, 34),
+              outline=(255, 255, 255), width=1)
+    for ang in range(0, 360, 45):
+        import math
+        ex = mx + 17 * math.cos(math.radians(ang))
+        ey = my + 17 * math.sin(math.radians(ang))
+        d.line([(mx, my), (ex, ey)], fill=(30, 30, 34), width=2)
+    # sea lines
+    for wy in (0.70, 0.80, 0.92):
+        d.line([(x + 10, y + h * wy), (x + w - 10, y + h * wy)],
+               fill=(90, 140, 190), width=1)
+
+
 def illu_mini_refinery(d, x, y, w, h):
     d.rectangle([x, y, x + w, y + h], fill=(52, 44, 60))
     d.rectangle([x + 8, y + h - 26, x + 30, y + h], fill=(90, 80, 100))
@@ -454,6 +516,63 @@ def illu_mini_mountains(d, x, y, w, h):
            width=1)
 
 
+def illu_mini_space(d, x, y, w, h):
+    """Compact Tiangong: night sky, station, Earth arc."""
+    d.rectangle([x, y, x + w, y + h], fill=(8, 12, 28))
+    import random
+    rnd = random.Random(2611)
+    for _ in range(16):
+        sx = x + rnd.random() * w
+        sy = y + rnd.random() * h * 0.5
+        d.ellipse([sx - 1, sy - 1, sx + 1, sy + 1], fill=(255, 255, 255))
+    d.ellipse([x - w * 0.3, y + h * 0.62, x + w * 1.3, y + h * 2.0],
+              fill=(42, 110, 180))
+    cx, cy = x + w * 0.5, y + h * 0.34
+    d.rectangle([cx - 52, cy - 6, cx - 10, cy + 6], fill=(31, 78, 121),
+                outline=(255, 255, 255), width=1)
+    d.rectangle([cx + 10, cy - 6, cx + 52, cy + 6], fill=(31, 78, 121),
+                outline=(255, 255, 255), width=1)
+    d.rounded_rectangle([cx - 10, cy - 9, cx + 10, cy + 9], radius=4,
+                        fill=(220, 220, 215), outline=INK, width=1)
+
+
+def illu_mini_russia(d, x, y, w, h):
+    """Record budget: dark red, gold star, rising bars."""
+    d.rectangle([x, y, x + w, y + h], fill=(96, 16, 20))
+    cx, cy = x + 26, y + 16
+    d.polygon([(cx, cy - 10), (cx + 3, cy - 2), (cx + 11, cy - 2),
+               (cx + 5, cy + 3), (cx + 7, cy + 11), (cx, cy + 6),
+               (cx - 7, cy + 11), (cx - 5, cy + 3), (cx - 11, cy - 2),
+               (cx - 3, cy - 2)], fill=GOLD)
+    for i, bh in enumerate([10, 16, 24, 32]):
+        bx = x + 58 + i * 32
+        d.rectangle([bx, y + h - 8 - bh, bx + 20, y + h - 8], fill=GOLD)
+    d.text((x + 58, y + 4), "$609bn", font=SANS_B(15), fill=(255, 255, 255))
+
+
+def illu_mini_treaty(d, x, y, w, h):
+    """Two flags over a Pacific sea: Solomon Islands + Australia."""
+    d.rectangle([x, y, x + w, y + h], fill=(168, 205, 230))
+    d.rectangle([x, y + h - 14, x + w, y + h], fill=(58, 110, 160))
+    # left flag: blue field, yellow diagonal, white stars
+    fx, fy = x + 34, y + 8
+    d.polygon([(fx, fy), (fx + 52, fy), (fx + 52, fy + 26), (fx, fy + 26)],
+              fill=(31, 78, 121), outline=INK, width=1)
+    d.polygon([(fx, fy + 26), (fx + 52, fy), (fx + 52, fy + 7),
+               (fx, fy + 26)], fill=YELLOW)
+    for sx, sy in [(fx + 10, fy + 6), (fx + 22, fy + 10), (fx + 14, fy + 18)]:
+        d.ellipse([sx - 2, sy - 2, sx + 2, sy + 2], fill=(255, 255, 255))
+    d.line([(fx, fy), (fx, y + h - 14)], fill=INK, width=2)
+    # right flag: dark blue, white stars
+    gx, gy = x + w - 88, y + 8
+    d.polygon([(gx, gy), (gx + 52, gy), (gx + 52, gy + 26), (gx, gy + 26)],
+              fill=(18, 38, 66), outline=INK, width=1)
+    for sx, sy in [(gx + 12, gy + 7), (gx + 26, gy + 13), (gx + 40, gy + 7),
+                   (gx + 19, gy + 19), (gx + 33, gy + 19)]:
+        d.ellipse([sx - 2, sy - 2, sx + 2, sy + 2], fill=(255, 255, 255))
+    d.line([(gx + 52, gy), (gx + 52, y + h - 14)], fill=INK, width=2)
+
+
 def clipped_art(art, w, h):
     """Render an illustration on its own layer so it can never spill
     past its panel and cover neighbouring text."""
@@ -484,81 +603,81 @@ LEADS = [
         "src": "BBC · The Guardian",
     },
     {
-        "num": 3, "kicker": "TIANGONG · SPACE", "art": illu_space,
-        "head": "First foreign astronaut boards China's Tiangong",
-        "deck": "Pakistan's Muhammad Zeeshan Ali joins the Shenzhou-24 "
-                "crew for five days of experiments.",
-        "src": "The Guardian · BBC",
+        "num": 3, "kicker": "HORMUZ · ESCALATION", "art": illu_hormuz,
+        "head": "Two ships hit mines in the Strait of Hormuz",
+        "deck": "A supertanker carrying 2m barrels hit near Khasab. "
+                "Israel says it is ready to strike Iran.",
+        "src": "Al Jazeera · Reuters",
     },
 ]
 
 MINIS = [
-    {"num": 4, "kicker": "RIYADH · CONFLICT", "art": illu_mini_refinery,
+    {"num": 4, "kicker": "TIANGONG · SPACE", "art": illu_mini_space,
+     "head": "First foreign astronaut boards Tiangong",
+     "deck": "Pakistan's Zeeshan Ali joins the Shenzhou-24 crew. — BBC"},
+    {"num": 5, "kicker": "RIYADH · CONFLICT", "art": illu_mini_refinery,
      "head": "Houthis hit Saudi ports and refinery",
      "deck": "Riyadh says it downed drones and missiles; oil rose. — Al Jazeera"},
-    {"num": 5, "kicker": "NEW YORK · MARKETS", "art": illu_mini_chart,
-     "head": "AI sell-off pushes Nasdaq near bear market",
+    {"num": 6, "kicker": "NEW YORK · MARKETS", "art": illu_mini_chart,
+     "head": "Nasdaq nears bear market in AI sell-off",
      "deck": "S&P 500 fell 0.25%; Nvidia slid on Huang questions. — Sky News"},
-    {"num": 6, "kicker": "KYIV · WAR", "art": illu_mini_jet,
+    {"num": 7, "kicker": "KYIV · WAR", "art": illu_mini_jet,
      "head": "Ukraine hits airbase; Kyiv hit by missiles",
      "deck": "Five jets hit at Savasleyka; a mall hit in Kyiv. — BBC"},
-    {"num": 7, "kicker": "TEHRAN · WARNING", "art": illu_mini_warning,
-     "head": "US tells citizens to leave Iran as war fears grow",
+    {"num": 8, "kicker": "TEHRAN · WARNING", "art": illu_mini_warning,
+     "head": "US tells citizens to leave Iran",
      "deck": "Kushner confirmed meeting Iranian envoys. — Euronews"},
-    {"num": 8, "kicker": "GAZA CITY · CONFLICT", "art": illu_mini_skyline,
+    {"num": 9, "kicker": "GAZA CITY · CONFLICT", "art": illu_mini_skyline,
      "head": "Israeli strikes kill Hamas security chief",
      "deck": "Mohammed Abu al-Ouf killed; 11 more dead. — BBC"},
-    {"num": 9, "kicker": "BRUSSELS · EUROPE", "art": illu_mini_eu,
+    {"num": 10, "kicker": "MOSCOW · BUDGET", "art": illu_mini_russia,
+     "head": "Russia approves record military budget",
+     "deck": "$609bn defence plan, most since Soviet times. — Washington Post"},
+    {"num": 11, "kicker": "BRUSSELS · EUROPE", "art": illu_mini_eu,
      "head": "EU leaders meet over €2tn long-term budget",
      "deck": "A deal is far from certain; Germany presses limits. — RFI"},
-    {"num": 10, "kicker": "SEOUL · ECONOMY", "art": illu_mini_bank,
-     "head": "Bank of Korea raises rate to 3.25%",
-     "deck": "Up 25 points, the highest in two years. — Yonhap"},
-    {"num": 11, "kicker": "NEW YORK · THANKSGIVING", "art": illu_mini_balloon,
+    {"num": 12, "kicker": "HONIARA · PACIFIC", "art": illu_mini_treaty,
+     "head": "Solomon Islands signs Australia treaty",
+     "deck": "A new security treaty with Australia in the Pacific. — 10 Things"},
+    {"num": 13, "kicker": "NEW YORK · THANKSGIVING", "art": illu_mini_balloon,
      "head": "Macy's postpones Thanksgiving parade",
      "deck": "The 100th parade moves to Saturday on storm winds. — BBC"},
-    {"num": 12, "kicker": "HONG KONG · REMEMBRANCE", "art": illu_mini_candle,
-     "head": "Hong Kong marks a year since fire killed 168",
-     "deck": "No official memorial; families still await answers. — SCMP"},
-    {"num": 13, "kicker": "KATHMANDU · DISASTER", "art": illu_mini_mountains,
-     "head": "Nepal: 213 Indians missing presumed dead",
-     "deck": "Lost in flash floods; families asked to come forward. — The Hindu"},
 ]
 
 ALSO = [
     "Asian stocks rebound as tariffs look milder",
-    "King tides flood the California coast",
-    "Pig-kidney patient marks a year off dialysis",
-    "UK sends convicted refugees to Eswatini",
+    "King tides flood the California coast; pier collapses",
+    "Bank of Korea raises rate to 3.25%",
+    "Hong Kong marks a year since fire killed 168",
+    "Nepal: 213 Indians missing presumed dead",
+    "UK net migration falls to 77,000, lowest since 1997",
+    "Germany arrests two over synagogue attack plot",
+    "Memory-chip shortage triples some RAM prices",
+    "Gold slumps to 15-month low on Fed hike bets",
     "Indonesia gold mine flood kills at least 13",
     "ISIL attack kills two in north-east Syria",
     "Brazil pulls its ambassador from Argentina",
     "Iraq court takes control of Kurdistan oil",
-    "Australia set to miss its 2035 climate target",
+    "UK acts on drone threat to airbases",
     "Flinders Island fire destroys at least six homes",
-    "Rare lakes found a mile beneath the Red Sea",
-    "U-17: African sides reach the last 32",
-    "Iowa Army blast destroys explosives stockpile",
-    "Bangladesh garment wage unrest shuts factories",
-    "Canary Islands: 2,000 migrants arrive in a day",
     "Spain votes Sunday, with the right favoured",
 ]
 
 REGIONS = [
-    ("ASIA-PACIFIC", 7, "1st", "foreigner in orbit", BLUE),
-    ("EUROPE", 4, "€2tn", "EU budget talks", (107, 63, 160)),
-    ("AMERICAS", 6, "–20%", "Nasdaq nears bear", TEAL),
-    ("MIDDLE EAST", 7, "2%", "oil jumps on strikes", DARKRED),
-    ("AFRICA", 2, "31", "killed in Cairo fire", BROWN),
-    ("OCEANIA", 2, "6", "homes lost, island fire", GREEN),
-    ("WORLDWIDE", 1, "14", "partners face tariffs", GREY),
+    ("ASIA-PACIFIC", 6, "6", "stories today", BLUE),
+    ("EUROPE", 7, "€2tn", "EU budget talks", (107, 63, 160)),
+    ("AMERICAS", 4, "–20%", "Nasdaq nears bear", TEAL),
+    ("MIDDLE EAST", 6, "2", "ships hit by mines", DARKRED),
+    ("AFRICA", 1, "31", "killed in Cairo fire", BROWN),
+    ("OCEANIA", 2, "2", "treaty + island fire", GREEN),
+    ("WORLDWIDE", 3, "14", "partners face tariffs", GREY),
 ]
 
 DATE_CHECK = ("DATE CHECK — Every story here happened, or was first "
               "reported, on Thursday 26 November 2026. LEFT OUT: Huawei "
               "verdict, Senegal's Cup title, Huang's Nvidia return (all "
               "Tue 24 Nov); SpaceX satellites, Kim's nuclear vow, "
-              "Colombia hostages (all Wed 25 Nov).")
+              "Colombia hostages, Netanyahu case (all Wed 25 Nov).")
 
 SOURCES = ("Sources: Reuters, AP, AFP, BBC, Al Jazeera, The Guardian, "
            "Euronews, Yonhap, CBC, BBC Science · Pictures and map: "
@@ -584,7 +703,7 @@ def build():
     dw = d.textlength(dt, font=SERIF_B(62))
     d.text(((W - dw) / 2, 30), dt, font=SERIF_B(62), fill=INK)
     sub = ("US tariffs hit 14 partners · Cairo tanker fire kills 31 · "
-           "First foreign astronaut boards Tiangong")
+           "Two ships hit mines in Hormuz")
     sw = d.textlength(sub, font=SERIF_I(21))
     d.text(((W - sw) / 2, 102), sub, font=SERIF_I(21), fill=RED)
     rule(d, M, 130, CW, fill=RED, width=3)
@@ -621,8 +740,8 @@ def build():
         d.text((kx, ky), "%d  %s" % (lead["num"], lead["kicker"]),
                font=SANS_B(12), fill=RED)
         hy = ky + 18
-        lines = fit_lines(d, lead["head"], SERIF_B(27), lw3 - 16, 2)
-        hy = text_lines(d, kx, hy, lines, SERIF_B(27), INK, leading=30)
+        lines = fit_lines(d, lead["head"], SERIF_B(28), lw3 - 16, 2)
+        hy = text_lines(d, kx, hy, lines, SERIF_B(28), INK, leading=31)
         dy = hy + 6
         dlines = fit_lines(d, lead["deck"], SERIF_R(14), lw3 - 16, 2)
         dy = text_lines(d, kx, dy, dlines, SERIF_R(14), INK, leading=17)
@@ -645,8 +764,8 @@ def build():
             d.text((kx, ky), "%d  %s" % (m["num"], m["kicker"]),
                    font=SANS_B(10), fill=RED)
             hy = ky + 14
-            lines = fit_lines(d, m["head"], SANS_B(14), mw - 14, 2)
-            hy = text_lines(d, kx, hy, lines, SANS_B(14), INK, leading=16)
+            lines = fit_lines(d, m["head"], SANS_B(15), mw - 14, 2)
+            hy = text_lines(d, kx, hy, lines, SANS_B(15), INK, leading=17)
             dlines = fit_lines(d, m["deck"], SERIF_R(11), mw - 14, 2)
             end = text_lines(d, kx, hy + 3, dlines, SERIF_R(11), GREY,
                              leading=13)
