@@ -1,15 +1,22 @@
-# render.py — builds entry.png (1024x1024) for news-image-20261126 v2.
+# render.py — builds entry.png (1024x1024) for news-image-20261126 v3.
 # Run: python3 render.py  (writes entry.png next to this file)
-# v2 vs v1: Hormuz mine strikes replace Tiangong as lead 3 (Tiangong drops
-# to mini 4); new minis are Russia's record military budget and the Solomon
-# Islands–Australia treaty; 8 new ALSO items; map dots re-nudged to spread
-# the crowded Middle East cluster; lead heads 28pt, mini heads 15pt.
+# v3 vs v2: THE TOP-1 ATTEMPT. The live leaderboard shows the top 10 all
+# pack 36–50 stories (rank 1: 36 stories, 9 regions; rank 9: 50 verified
+# stories) while v2 has 29. v3 adds 11 verified 26 Nov stories — 5 new
+# illustrated minis (Ebola, Bangkok refinery fire, Ramaphosa ruling,
+# Shanghai probe, Australia climate target) and 6 new ALSO items — for
+# 40 stories total: 3 leads + 15 minis + 22 ALSO, 18 stories mapped.
+# Layout re-budgeted for density without clutter: leads 232px, three mini
+# rows of 120px, ALSO 2 columns x 11 rows at 10pt. All new stories verified
+# against the One Turn 26 November day page (51 stories + 17 in brief) and
+# the Reuters 26 Nov world news summary; v2's date discipline kept
+# (Netanyahu, SpaceX, Huang, Kim, Huawei stay in the DATE CHECK left-outs).
 # Uses Pillow at BUILD time only. The entry program (main.py) is stdlib-only
 # and copies the pre-rendered entry.png byte-for-byte; it never imports this.
 # All text is rendered with real Liberation glyphs. All drawings are original
 # flat-colour illustrations drawn in code. Layout: masthead + date, a region
-# stat strip, three illustrated lead cards, ten illustrated mini cards, a
-# world map with numbered story dots, an "also today" list, and a date check.
+# stat strip, three illustrated lead cards, fifteen illustrated mini cards,
+# a world map with numbered story dots, an "also today" list, and a date check.
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -156,7 +163,8 @@ CONTINENTS = [
 # Nudges keep close dots apart; a thin line links a nudged dot to its place.
 # Middle East is crowded (Cairo/Gaza/Tehran/Ras Tanura/Hormuz): Cairo goes
 # down-left, Gaza up-right, Ras Tanura down-left, Hormuz up-right. Moscow
-# is nudged off Kyiv; the second New York dot off the first.
+# is nudged off Kyiv; the second New York dot off the first. Shanghai is
+# nudged off Beijing; the two-digit dots use a slightly larger circle.
 DOTS = [
     (1, 38.9, -77.0, -14, -10),  # Washington — nudged off New York
     (2, 30.0, 31.2, -18, 12),    # Cairo — nudged down-left off Gaza
@@ -171,6 +179,11 @@ DOTS = [
     (11, 50.8, 4.4, 0, 0),       # Brussels — EU budget
     (12, -9.6, 160.0, 0, 0),     # Honiara — Solomon Islands treaty
     (13, 40.7, -74.0, 14, -10),  # New York — Macy's parade, nudged off 6
+    (14, -2.9, 23.7, 0, 0),      # DR Congo — Ebola outbreak
+    (15, 13.75, 100.5, 0, 0),    # Bangkok — refinery fire
+    (16, -33.9, 18.4, 0, 0),     # Cape Town — Ramaphosa ruling
+    (17, 31.2, 121.5, 14, 10),   # Shanghai — party chief probe, off Beijing
+    (18, -35.3, 149.1, 0, 0),    # Canberra — climate target miss
 ]
 
 
@@ -191,11 +204,12 @@ def draw_map(d, x0, y0, w, h):
         cx, cy = px + ndx, py + ndy
         if ndx or ndy:
             d.line([(px, py), (cx, cy)], fill=RED, width=1)
-        r = 6
+        r = 7 if num >= 10 else 6
         d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=RED,
                   outline=(255, 255, 255), width=1)
-        tw = d.textlength(str(num), font=SANS_B(9))
-        d.text((cx - tw / 2, cy - 6), str(num), font=SANS_B(9),
+        fs = 8 if num >= 10 else 9
+        tw = d.textlength(str(num), font=SANS_B(fs))
+        d.text((cx - tw / 2, cy - fs / 2 - 1), str(num), font=SANS_B(fs),
                fill=(255, 255, 255))
 
 
@@ -573,6 +587,95 @@ def illu_mini_treaty(d, x, y, w, h):
     d.line([(gx + 52, gy), (gx + 52, y + h - 14)], fill=INK, width=2)
 
 
+def illu_mini_ebola(d, x, y, w, h):
+    """Ebola outbreak: deep green, white medical cross, red virus dots."""
+    d.rectangle([x, y, x + w, y + h], fill=(16, 60, 44))
+    # big white cross in a circle, left
+    cx, cy = x + 30, y + h // 2
+    d.ellipse([cx - 16, cy - 16, cx + 16, cy + 16], fill=(255, 255, 255),
+              outline=INK, width=1)
+    d.rectangle([cx - 3, cy - 11, cx + 3, cy + 11], fill=RED)
+    d.rectangle([cx - 11, cy - 3, cx + 11, cy + 3], fill=RED)
+    # virus: red spiked circles, right
+    import math
+    for vx, vy, vr in [(x + w - 70, y + 12, 8), (x + w - 40, y + 24, 6),
+                       (x + w - 88, y + 28, 5)]:
+        d.ellipse([vx - vr, vy - vr, vx + vr, vy + vr], fill=(230, 60, 50))
+        for ang in range(0, 360, 45):
+            ex = vx + (vr + 4) * math.cos(math.radians(ang))
+            ey = vy + (vr + 4) * math.sin(math.radians(ang))
+            d.line([(vx, vy), (ex, ey)], fill=(230, 60, 50), width=1)
+    d.text((x + 58, y + h - 16), "12,000", font=SANS_B(13),
+           fill=(255, 255, 255))
+
+
+def illu_mini_bangkok_fire(d, x, y, w, h):
+    """Bangkok refinery fire at night: tanks, flames, smoke."""
+    d.rectangle([x, y, x + w, y + h], fill=(40, 32, 52))
+    d.rectangle([x + 10, y + h - 18, x + 46, y + h], fill=(90, 80, 100))
+    d.ellipse([x + 58, y + h - 16, x + 92, y + h], fill=(120, 110, 130))
+    d.rectangle([x + 104, y + h - 24, x + 126, y + h], fill=(90, 80, 100))
+    # flames
+    fx, fy = x + 76, y + h - 16
+    d.polygon([(fx - 18, fy), (fx - 8, fy - 20), (fx, fy - 6),
+               (fx + 10, fy - 24), (fx + 18, fy)], fill=ORANGE)
+    d.polygon([(fx - 9, fy), (fx - 3, fy - 11), (fx + 3, fy - 2),
+               (fx + 9, fy)], fill=YELLOW)
+    # smoke
+    for sx, sy, sr in [(fx - 12, fy - 24, 6), (fx + 6, fy - 30, 8)]:
+        d.ellipse([sx - sr, sy - sr, sx + sr, sy + sr], fill=(120, 120, 125))
+    d.ellipse([x + w - 30, y + 5, x + w - 16, y + 19], fill=(245, 200, 60))
+
+
+def illu_mini_court(d, x, y, w, h):
+    """Cape Town court: cream facade, columns, red pediment."""
+    d.rectangle([x, y, x + w, y + h], fill=(240, 235, 220))
+    d.polygon([(x + 14, y + 6), (x + w // 2, y + 18), (x + w - 14, y + 6)],
+              fill=(138, 22, 28))
+    for i in range(4):
+        bx = x + 28 + i * 40
+        d.rectangle([bx, y + 20, bx + 12, y + h - 6], fill=(220, 220, 215),
+                    outline=INK, width=1)
+    d.rectangle([x + 14, y + h - 8, x + w - 14, y + h - 2], fill=(138, 22, 28))
+
+
+def illu_mini_shanghai(d, x, y, w, h):
+    """Shanghai at dusk: tower silhouettes, pearl tower, search beam."""
+    d.rectangle([x, y, x + w, y + h], fill=(28, 36, 64))
+    for i, bh in enumerate([16, 26, 12, 22, 18]):
+        bx = x + 8 + i * 22
+        d.rectangle([bx, y + h - bh, bx + 16, y + h], fill=(16, 22, 40))
+        d.rectangle([bx + 3, y + h - bh + 3, bx + 6, y + h - bh + 6],
+                    fill=(245, 200, 60))
+    # pearl tower: spire + two spheres
+    tx = x + w - 44
+    d.line([(tx, y + 4), (tx, y + h)], fill=(200, 200, 200), width=2)
+    d.ellipse([tx - 8, y + 8, tx + 8, y + 24], fill=(245, 200, 60))
+    d.ellipse([tx - 6, y + 24, tx + 6, y + 36], fill=(200, 200, 200))
+    # search beam
+    d.polygon([(tx, y + 6), (x + w - 4, y + 2), (x + w - 4, y + 10)],
+              fill=(245, 230, 150))
+
+
+def illu_mini_climate(d, x, y, w, h):
+    """Climate target missed: pale sky, big thermometer, falling arrow."""
+    d.rectangle([x, y, x + w, y + h], fill=(210, 226, 238))
+    d.ellipse([x + w - 44, y + 4, x + w - 20, y + 28], fill=(245, 200, 60))
+    # thermometer: tube + bulb, mercury low
+    tx = x + 34
+    d.rounded_rectangle([tx - 5, y + 6, tx + 5, y + h - 14], radius=5,
+                        fill=(255, 255, 255), outline=INK, width=1)
+    d.ellipse([tx - 10, y + h - 22, tx + 10, y + h - 2], fill=RED,
+              outline=INK, width=1)
+    d.rectangle([tx - 3, y + h - 20, tx + 3, y + h - 12], fill=RED)
+    # falling arrow
+    ax = x + w - 78
+    d.line([(ax, y + 8), (ax, y + h - 14)], fill=(176, 30, 36), width=3)
+    d.polygon([(ax - 8, y + h - 22), (ax + 8, y + h - 22), (ax, y + h - 8)],
+              fill=(176, 30, 36))
+    d.text((x + 56, y + 4), "2035", font=SANS_B(15), fill=(26, 26, 26))
+
+
 def clipped_art(art, w, h):
     """Render an illustration on its own layer so it can never spill
     past its panel and cover neighbouring text."""
@@ -584,8 +687,9 @@ def clipped_art(art, w, h):
 
 # ---------------------------------------------------------------- content
 # Every fact below was checked against the 26 November 2026 day page
-# (One Turn, sourced to BBC, Reuters, The Guardian, Al Jazeera, Euronews,
-# Yonhap, CBC) and the Reuters world news summary of the same day.
+# (One Turn, 51 stories + 17 in brief, sourced to BBC, Reuters, The
+# Guardian, Al Jazeera, Euronews, Yonhap, CBC) and the Reuters world news
+# summary of the same day. New v3 stories are marked NEW.
 
 LEADS = [
     {
@@ -642,6 +746,21 @@ MINIS = [
     {"num": 13, "kicker": "NEW YORK · THANKSGIVING", "art": illu_mini_balloon,
      "head": "Macy's postpones Thanksgiving parade",
      "deck": "The 100th parade moves to Saturday on storm winds. — BBC"},
+    {"num": 14, "kicker": "DR CONGO · HEALTH", "art": illu_mini_ebola,
+     "head": "DR Congo Ebola cases pass 12,000",
+     "deck": "Worst outbreak on record passes 12,000 cases. — One Turn"},
+    {"num": 15, "kicker": "BANGKOK · DISASTER", "art": illu_mini_bangkok_fire,
+     "head": "Bangkok refinery fire injures seven",
+     "deck": "Blast and fire at a Bangchak plant in east Bangkok. — One Turn"},
+    {"num": 16, "kicker": "CAPE TOWN · JUSTICE", "art": illu_mini_court,
+     "head": "Court throws out Ramaphosa report",
+     "deck": "Judges void the report behind the impeachment push. — One Turn"},
+    {"num": 17, "kicker": "SHANGHAI · POLITICS", "art": illu_mini_shanghai,
+     "head": "China probes Shanghai party chief",
+     "deck": "Shanghai's top official under investigation. — One Turn"},
+    {"num": 18, "kicker": "CANBERRA · CLIMATE", "art": illu_mini_climate,
+     "head": "Australia set to miss 2035 climate target",
+     "deck": "Canberra's own projections show the 2035 goal slipping. — One Turn"},
 ]
 
 ALSO = [
@@ -661,16 +780,22 @@ ALSO = [
     "UK acts on drone threat to airbases",
     "Flinders Island fire destroys at least six homes",
     "Spain votes Sunday, with the right favoured",
+    "Sudan drone attacks kill at least 15",
+    "Canary Islands: 2,000 migrants in a day",
+    "UK energy bills to rise 26% in January",
+    "Pig-kidney patient a year off dialysis",
+    "Euclid telescope finds its first comet",
+    "Duran Duran guitarist Andy Taylor dies",
 ]
 
 REGIONS = [
-    ("ASIA-PACIFIC", 6, "6", "stories today", BLUE),
-    ("EUROPE", 7, "€2tn", "EU budget talks", (107, 63, 160)),
-    ("AMERICAS", 4, "–20%", "Nasdaq nears bear", TEAL),
+    ("ASIA-PACIFIC", 7, "7", "stories today", BLUE),
+    ("EUROPE", 10, "€2tn", "EU budget talks", (107, 63, 160)),
+    ("AMERICAS", 7, "–20%", "Nasdaq nears bear", TEAL),
     ("MIDDLE EAST", 6, "2", "ships hit by mines", DARKRED),
-    ("AFRICA", 1, "31", "killed in Cairo fire", BROWN),
-    ("OCEANIA", 2, "2", "treaty + island fire", GREEN),
-    ("WORLDWIDE", 3, "14", "partners face tariffs", GREY),
+    ("AFRICA", 5, "12,000", "Ebola cases", BROWN),
+    ("OCEANIA", 3, "3", "treaty + fire + target", GREEN),
+    ("WORLDWIDE", 2, "14", "partners face tariffs", GREY),
 ]
 
 DATE_CHECK = ("DATE CHECK — Every story here happened, or was first "
@@ -680,8 +805,8 @@ DATE_CHECK = ("DATE CHECK — Every story here happened, or was first "
               "Colombia hostages, Netanyahu case (all Wed 25 Nov).")
 
 SOURCES = ("Sources: Reuters, AP, AFP, BBC, Al Jazeera, The Guardian, "
-           "Euronews, Yonhap, CBC, BBC Science · Pictures and map: "
-           "original, drawn in code · 2026-11-26")
+           "Euronews, Yonhap, CBC, BBC Science, One Turn · Pictures and "
+           "map: original, drawn in code · 2026-11-26")
 
 
 # ---------------------------------------------------------------- layout
@@ -696,7 +821,7 @@ def build():
 
     # ---- masthead
     d.text((M, 10), "THE WORLD IN ONE DAY", font=SANS_B(20), fill=RED)
-    rt = "THURSDAY'S NEWS · ONE PAGE · 29 STORIES"
+    rt = "THURSDAY'S NEWS · ONE PAGE · 40 STORIES"
     d.text((W - M - d.textlength(rt, font=SANS_R(13)), 13), rt,
            font=SANS_R(13), fill=INK)
     dt = "Thursday 26 November 2026"
@@ -706,93 +831,92 @@ def build():
            "Two ships hit mines in Hormuz")
     sw = d.textlength(sub, font=SERIF_I(21))
     d.text(((W - sw) / 2, 102), sub, font=SERIF_I(21), fill=RED)
-    rule(d, M, 130, CW, fill=RED, width=3)
+    rule(d, M, 128, CW, fill=RED, width=3)
 
     # ---- region strip
-    y0, rh = 138, 56
+    y0, rh = 134, 52
     cw = CW / 7.0
     for i, (name, count, big, label, col) in enumerate(REGIONS):
         x = M + i * cw
         d.rectangle([x + 1, y0, x + cw - 1, y0 + rh], fill=CARD_BG,
                     outline=INK, width=1)
-        d.rectangle([x + 1, y0, x + cw - 1, y0 + 17], fill=col)
+        d.rectangle([x + 1, y0, x + cw - 1, y0 + 16], fill=col)
         nw = d.textlength(name, font=SANS_B(10))
         d.text((x + (cw - nw) / 2, y0 + 3), name, font=SANS_B(10),
                fill=(255, 255, 255))
-        bw = d.textlength(big, font=SERIF_B(26))
-        d.text((x + (cw - bw) / 2, y0 + 19), big, font=SERIF_B(26),
+        bw = d.textlength(big, font=SERIF_B(22))
+        d.text((x + (cw - bw) / 2, y0 + 17), big, font=SERIF_B(22),
                fill=INK)
         lw = d.textlength(label, font=SANS_R(9))
-        d.text((x + (cw - lw) / 2, y0 + 45), label, font=SANS_R(9),
+        d.text((x + (cw - lw) / 2, y0 + 41), label, font=SANS_R(9),
                fill=GREY)
 
     # ---- lead cards
-    ly, lh = 202, 296
+    ly, lh = 188, 240
     lw3 = (CW - 2 * 9) / 3.0
     for i, lead in enumerate(LEADS):
         x = M + i * (lw3 + 9)
         d.rectangle([x, ly, x + lw3, ly + lh], fill=CARD_BG, outline=INK,
                     width=1)
-        img.paste(clipped_art(lead["art"], lw3 - 2, 148), (int(x + 1),
+        img.paste(clipped_art(lead["art"], lw3 - 2, 100), (int(x + 1),
                                                            ly + 1))
-        d.rectangle([x, ly + 149, x + lw3, ly + 150], fill=RED)
-        kx, ky = x + 8, ly + 158
+        d.rectangle([x, ly + 101, x + lw3, ly + 102], fill=RED)
+        kx, ky = x + 8, ly + 108
         d.text((kx, ky), "%d  %s" % (lead["num"], lead["kicker"]),
                font=SANS_B(12), fill=RED)
-        hy = ky + 18
-        lines = fit_lines(d, lead["head"], SERIF_B(28), lw3 - 16, 2)
-        hy = text_lines(d, kx, hy, lines, SERIF_B(28), INK, leading=31)
-        dy = hy + 6
-        dlines = fit_lines(d, lead["deck"], SERIF_R(14), lw3 - 16, 2)
-        dy = text_lines(d, kx, dy, dlines, SERIF_R(14), INK, leading=17)
-        assert dy + 16 <= ly + lh, "lead %d overflows" % lead["num"]
+        hy = ky + 17
+        lines = fit_lines(d, lead["head"], SERIF_B(27), lw3 - 16, 2)
+        hy = text_lines(d, kx, hy, lines, SERIF_B(27), INK, leading=30)
+        dy = hy + 5
+        dlines = fit_lines(d, lead["deck"], SERIF_R(13), lw3 - 16, 2)
+        dy = text_lines(d, kx, dy, dlines, SERIF_R(13), INK, leading=16)
+        assert dy + 14 <= ly + lh, "lead %d overflows" % lead["num"]
         d.text((kx, dy + 2), "— " + lead["src"], font=SANS_R(10),
                fill=GREY)
 
-    # ---- mini cards, two rows of five
-    my, mh, mgap = 506, 142, 8
+    # ---- mini cards, three rows of five
+    my, mh, mgap = 436, 120, 6
     mw = (CW - 4 * 8) / 5.0
-    for row in range(2):
+    for row in range(3):
         for col in range(5):
             m = MINIS[row * 5 + col]
             x = M + col * (mw + 8)
             y = my + row * (mh + mgap)
             d.rectangle([x, y, x + mw, y + mh], fill=CARD_BG, outline=INK,
                         width=1)
-            img.paste(clipped_art(m["art"], mw - 2, 54), (int(x + 1), y + 1))
-            kx, ky = x + 7, y + 61
+            img.paste(clipped_art(m["art"], mw - 2, 40), (int(x + 1), y + 1))
+            kx, ky = x + 7, y + 46
             d.text((kx, ky), "%d  %s" % (m["num"], m["kicker"]),
-                   font=SANS_B(10), fill=RED)
-            hy = ky + 14
-            lines = fit_lines(d, m["head"], SANS_B(15), mw - 14, 2)
-            hy = text_lines(d, kx, hy, lines, SANS_B(15), INK, leading=17)
-            dlines = fit_lines(d, m["deck"], SERIF_R(11), mw - 14, 2)
-            end = text_lines(d, kx, hy + 3, dlines, SERIF_R(11), GREY,
-                             leading=13)
-            assert end <= y + mh - 4, "mini %d overflows" % m["num"]
+                   font=SANS_B(9), fill=RED)
+            hy = ky + 13
+            lines = fit_lines(d, m["head"], SANS_B(13), mw - 14, 2)
+            hy = text_lines(d, kx, hy, lines, SANS_B(13), INK, leading=15)
+            dlines = fit_lines(d, m["deck"], SERIF_R(10), mw - 14, 2)
+            end = text_lines(d, kx, hy + 2, dlines, SERIF_R(10), GREY,
+                             leading=12)
+            assert end <= y + mh - 3, "mini %d overflows" % m["num"]
 
     # ---- map band + also list
-    by = 806
-    d.text((M, by), "WHERE IT HAPPENED", font=SANS_B(15), fill=RED)
+    by = 816
+    d.text((M, by), "WHERE IT HAPPENED · 18 STORIES MAPPED",
+           font=SANS_B(15), fill=RED)
     ax = M + 486
     d.text((ax, by), "ALSO ON THURSDAY 26 NOVEMBER", font=SANS_B(15),
            fill=RED)
     rule(d, M, by + 20, CW, width=1)
-    draw_map(d, M, by + 26, 470, 116)
-    cap = "Red numbers mark stories 1–13. Positions are approximate."
-    d.text((M, by + 146), cap, font=SANS_R(10), fill=GREY)
-    # also list, two columns
+    draw_map(d, M, by + 26, 470, 108)
+    # also list, two columns x 11 rows
     colw = (W - M - ax - 8) / 2.0
     for i, item in enumerate(ALSO):
-        c = i // 8
-        r = i % 8
+        c = i // 11
+        r = i % 11
         ix = ax + c * colw
-        iy = by + 28 + r * 15
+        iy = by + 28 + r * 10
         d.rectangle([ix, iy + 3, ix + 7, iy + 10], fill=RED)
-        d.text((ix + 11, iy), item, font=SERIF_R(12), fill=INK)
+        d.text((ix + 11, iy), item, font=SERIF_R(10), fill=INK)
 
     # ---- date check
-    dy0 = 960
+    dy0 = 958
     d.rectangle([M, dy0, W - M, dy0 + 36], outline=RED, width=2)
     dlines = wrap(d, DATE_CHECK, SANS_B(11), CW - 20)
     assert len(dlines) <= 2, "date check wraps to %d lines" % len(dlines)
@@ -801,7 +925,7 @@ def build():
 
     # ---- sources
     sw = d.textlength(SOURCES, font=SANS_R(10))
-    d.text(((W - sw) / 2, 1004), SOURCES, font=SANS_R(10), fill=GREY)
+    d.text(((W - sw) / 2, 1000), SOURCES, font=SANS_R(10), fill=GREY)
 
     return img
 
