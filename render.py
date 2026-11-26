@@ -1,0 +1,693 @@
+# render.py — builds entry.png (1024x1024) for news-image-20261126.
+# Run: python3 render.py  (writes entry.png next to this file)
+# Uses Pillow at BUILD time only. The entry program (main.py) is stdlib-only
+# and copies the pre-rendered entry.png byte-for-byte; it never imports this.
+# All text is rendered with real Liberation glyphs. All drawings are original
+# flat-colour illustrations drawn in code. Layout: masthead + date, a region
+# stat strip, three illustrated lead cards, ten illustrated mini cards, a
+# world map with numbered story dots, an "also today" list, and a date check.
+
+from PIL import Image, ImageDraw, ImageFont
+
+W, H = 1024, 1024
+PAPER = (247, 241, 222)
+INK = (26, 26, 26)
+RED = (176, 30, 36)
+DARKRED = (138, 22, 28)
+BLUE = (31, 78, 121)
+NAVY = (18, 38, 66)
+TEAL = (15, 118, 110)
+GREEN = (46, 125, 50)
+PURPLE = (107, 63, 160)
+BROWN = (163, 60, 31)
+GREY = (85, 85, 85)
+LGREY = (140, 140, 140)
+LIGHTBLUE = (168, 205, 230)
+LAND = (232, 205, 150)
+SEA = (178, 212, 232)
+CARD_BG = (255, 252, 244)
+GOLD = (201, 162, 39)
+ORANGE = (230, 120, 30)
+YELLOW = (245, 200, 60)
+
+FDIR = "/usr/share/fonts/truetype/liberation/"
+
+
+def F(name, size):
+    return ImageFont.truetype(FDIR + name, size)
+
+
+SERIF_B = lambda s: F("LiberationSerif-Bold.ttf", s)
+SERIF_I = lambda s: F("LiberationSerif-Italic.ttf", s)
+SERIF_R = lambda s: F("LiberationSerif-Regular.ttf", s)
+SANS_B = lambda s: F("LiberationSans-Bold.ttf", s)
+SANS_R = lambda s: F("LiberationSans-Regular.ttf", s)
+
+
+def wrap(draw, text, font, max_w):
+    """Greedy word wrap; returns list of lines that fit max_w."""
+    words = text.split(" ")
+    lines, cur = [], ""
+    for w in words:
+        trial = (cur + " " + w).strip()
+        if draw.textlength(trial, font=font) <= max_w:
+            cur = trial
+        else:
+            if cur:
+                lines.append(cur)
+            cur = w
+    if cur:
+        lines.append(cur)
+    return lines
+
+
+def draw_wrapped(draw, x, y, text, font, max_w, fill, leading=None):
+    lines = wrap(draw, text, font, max_w)
+    lh = leading if leading is not None else int(font.size * 1.18)
+    for ln in lines:
+        draw.text((x, y), ln, font=font, fill=fill)
+        y += lh
+    return y, len(lines)
+
+
+def fit_lines(draw, text, font, max_w, max_lines):
+    """Wrap text; if it exceeds max_lines, shorten with ellipsis."""
+    lines = wrap(draw, text, font, max_w)
+    while len(lines) > max_lines and len(text) > 10:
+        text = text.rsplit(" ", 1)[0] + " …"
+        lines = wrap(draw, text, font, max_w)
+    return lines
+
+
+def text_lines(draw, x, y, lines, font, fill, leading=None):
+    lh = leading if leading is not None else int(font.size * 1.18)
+    for ln in lines:
+        draw.text((x, y), ln, font=font, fill=fill)
+        y += lh
+    return y
+
+
+def rule(draw, x, y, w, fill=INK, width=2):
+    draw.line([(x, y), (x + w, y)], fill=fill, width=width)
+
+
+# ---------------------------------------------------------------- world map
+# Coarse continent outlines in (lon, lat), drawn from general knowledge.
+# The map is a small locator: shapes are approximate, dots are approximate.
+CONTINENTS = [
+    # North America
+    [(-168, 66), (-140, 70), (-125, 72), (-110, 73), (-95, 80), (-85, 80),
+     (-75, 72), (-65, 60), (-55, 52), (-60, 47), (-70, 42), (-75, 35),
+     (-80, 32), (-85, 30), (-90, 29), (-97, 26), (-105, 22), (-110, 24),
+     (-115, 30), (-120, 34), (-125, 40), (-125, 48), (-130, 55),
+     (-145, 60), (-158, 58), (-165, 60)],
+    # Greenland
+    [(-55, 60), (-45, 60), (-40, 65), (-30, 68), (-20, 70), (-25, 76),
+     (-40, 78), (-58, 75), (-60, 70)],
+    # South America
+    [(-80, 10), (-75, 5), (-70, 10), (-60, 5), (-50, 0), (-40, -5),
+     (-35, -10), (-40, -20), (-48, -28), (-55, -35), (-65, -40),
+     (-70, -50), (-73, -40), (-75, -30), (-80, -20), (-80, -10), (-80, 0)],
+    # Africa
+    [(-10, 35), (-5, 35), (0, 36), (10, 37), (20, 32), (30, 31), (35, 28),
+     (40, 15), (48, 11), (51, 12), (45, 5), (40, -5), (40, -15),
+     (35, -25), (30, -35), (20, -35), (15, -27), (12, -18), (8, -5),
+     (0, 0), (-8, 5), (-15, 10), (-17, 15), (-15, 25)],
+    # Europe
+    [(-10, 36), (-9, 43), (-2, 48), (-5, 50), (0, 51), (5, 53), (8, 57),
+     (10, 59), (18, 56), (21, 55), (24, 58), (28, 60), (30, 62),
+     (25, 65), (20, 70), (15, 70), (10, 68), (5, 60), (5, 58), (0, 55),
+     (-5, 50), (-10, 45), (-10, 38)],
+    # Asia
+    [(30, 62), (40, 68), (55, 70), (70, 72), (90, 75), (110, 74),
+     (130, 72), (150, 70), (170, 66), (178, 65), (170, 60), (162, 55),
+     (155, 50), (145, 45), (140, 40), (135, 35), (130, 33), (127, 35),
+     (122, 38), (120, 32), (115, 25), (110, 20), (105, 15), (100, 10),
+     (95, 15), (90, 22), (85, 20), (80, 15), (77, 8), (75, 12),
+     (72, 20), (66, 25), (60, 25), (55, 26), (50, 28), (48, 30),
+     (45, 32), (40, 35), (35, 36), (30, 36)],
+    # Australia
+    [(113, -22), (114, -30), (115, -35), (120, -34), (125, -32),
+     (130, -32), (135, -35), (140, -38), (145, -38), (150, -37),
+     (153, -32), (153, -27), (150, -22), (146, -19), (142, -15),
+     (140, -12), (137, -12), (135, -15), (132, -12), (130, -13),
+     (126, -14), (122, -17), (118, -20)],
+    # United Kingdom
+    [(-5, 50), (-3, 53), (-5, 56), (-3, 58), (-1, 57), (0, 53), (1, 51),
+     (-2, 50)],
+    # Japan
+    [(130, 31), (132, 33), (135, 34), (138, 35), (140, 36), (141, 38),
+     (142, 42), (144, 44), (142, 45), (140, 42), (138, 38), (135, 35),
+     (132, 33)],
+    # Indonesia (rough)
+    [(95, 5), (100, 0), (105, -5), (110, -7), (115, -8), (120, -10),
+     (125, -9), (130, -5), (135, -4), (140, -8), (138, -7), (132, -3),
+     (128, 0), (122, 0), (118, 0), (112, -2), (105, -3), (100, 2)],
+]
+
+# Story dots: (number, lat, lon, nudge_dx_px, nudge_dy_px).
+# Nudges keep close dots apart; a thin line links a nudged dot to its place.
+DOTS = [
+    (1, 38.9, -77.0, -14, -10),  # Washington — nudged off New York
+    (2, 30.0, 31.2, 0, 0),       # Cairo — tanker fire
+    (3, 39.9, 116.4, 0, 0),      # Beijing — Tiangong
+    (4, 26.6, 50.2, 0, 12),      # Ras Tanura — nudged down off Tehran
+    (5, 40.7, -74.0, 0, 0),      # New York — Nasdaq
+    (6, 50.4, 30.5, 0, 0),       # Kyiv — Ukraine strikes
+    (7, 35.7, 51.4, 0, 0),       # Tehran — US warning
+    (8, 31.5, 34.5, 20, -18),    # Gaza — nudged off Cairo's dot
+    (9, 50.8, 4.4, 0, 0),        # Brussels — EU budget
+    (10, 37.6, 127.0, 10, -8),   # Seoul — nudged off Beijing's dot
+    (11, 40.7, -74.0, 12, -9),   # New York — Macy's parade, nudged off 5
+    (12, 22.3, 114.2, 0, 0),     # Hong Kong — fire anniversary
+    (13, 27.7, 85.3, 0, 0),      # Kathmandu — Nepal missing
+]
+
+
+def draw_map(d, x0, y0, w, h):
+    """Equirectangular locator map with numbered story dots."""
+    d.rectangle([x0, y0, x0 + w, y0 + h], fill=SEA, outline=INK, width=1)
+
+    def proj(lon, lat):
+        px = x0 + (lon + 170.0) / 360.0 * w
+        py = y0 + (75.0 - lat) / 130.0 * h
+        return px, py
+
+    for poly in CONTINENTS:
+        pts = [proj(lon, lat) for lon, lat in poly]
+        d.polygon(pts, fill=LAND, outline=INK)
+    for num, lat, lon, ndx, ndy in DOTS:
+        px, py = proj(lon, lat)
+        cx, cy = px + ndx, py + ndy
+        if ndx or ndy:
+            d.line([(px, py), (cx, cy)], fill=RED, width=1)
+        r = 6
+        d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=RED,
+                  outline=(255, 255, 255), width=1)
+        tw = d.textlength(str(num), font=SANS_B(9))
+        d.text((cx - tw / 2, cy - 6), str(num), font=SANS_B(9),
+               fill=(255, 255, 255))
+
+
+# ---------------------------------------------------------------- illustrations
+# All flat-colour, drawn in code. Each takes the panel's draw object and box.
+
+def illu_tariffs(d, x, y, w, h):
+    """Container ship on the sea with a tariff badge."""
+    d.rectangle([x, y, x + w, y + h], fill=(210, 226, 238))
+    d.rectangle([x, y + h * 0.62, x + w, y + h], fill=(58, 110, 160))
+    for i in range(5):
+        d.line([(x + 8 + i * 22, y + h * 0.62), (x + 8 + i * 22, y + h)],
+               fill=(40, 85, 130), width=1)
+    # hull
+    d.polygon([(x + 12, y + h * 0.55), (x + w - 12, y + h * 0.55),
+               (x + w - 34, y + h * 0.80), (x + 34, y + h * 0.80)],
+              fill=(30, 30, 30))
+    d.rectangle([x + 12, y + h * 0.55, x + w - 12, y + h * 0.60],
+                fill=(176, 30, 36))
+    # containers
+    cols = [(176, 30, 36), (31, 78, 121), (46, 125, 50), (201, 162, 39),
+            (107, 63, 160), (15, 118, 110)]
+    cw = (w - 40) / 6.0
+    for i, c in enumerate(cols):
+        cx = x + 20 + i * cw
+        d.rectangle([cx, y + h * 0.30, cx + cw - 3, y + h * 0.55], fill=c,
+                    outline=INK, width=1)
+        d.rectangle([cx, y + h * 0.18, cx + cw - 3, y + h * 0.30], fill=c,
+                    outline=INK, width=1)
+    # bridge tower
+    d.rectangle([x + w - 52, y + h * 0.22, x + w - 22, y + h * 0.55],
+                fill=(240, 240, 235), outline=INK, width=1)
+    for j in range(3):
+        d.rectangle([x + w - 48, y + h * 0.26 + j * 10,
+                     x + w - 26, y + h * 0.26 + j * 10 + 6],
+                    fill=(31, 78, 121))
+    # tariff badge
+    bx, by, br = x + w - 46, y + 34, 26
+    d.ellipse([bx - br, by - br, bx + br, by + br], fill=RED,
+              outline=(255, 255, 255), width=2)
+    tw = d.textlength("%", font=SERIF_B(34))
+    d.text((bx - tw / 2, by - 22), "%", font=SERIF_B(34),
+           fill=(255, 255, 255))
+
+
+def illu_cairo(d, x, y, w, h):
+    """Ring road at dusk: tanker truck, flames, smoke."""
+    d.rectangle([x, y, x + w, y + h * 0.55], fill=(64, 48, 74))
+    d.rectangle([x, y + h * 0.55, x + w, y + h], fill=(40, 40, 44))
+    # low sun
+    d.ellipse([x + w - 62, y + 12, x + w - 22, y + 52], fill=(245, 180, 80))
+    # skyline
+    for i, bh in enumerate([26, 40, 22, 48, 30, 44, 20]):
+        bx = x + 8 + i * 46
+        d.rectangle([bx, y + h * 0.55 - bh, bx + 34, y + h * 0.55],
+                    fill=(30, 26, 40))
+        for wy in range(2):
+            d.rectangle([bx + 6, y + h * 0.55 - bh + 6 + wy * 12,
+                         bx + 12, y + h * 0.55 - bh + 11 + wy * 12],
+                        fill=(245, 200, 60))
+    # road
+    d.polygon([(x, y + h), (x + w * 0.32, y + h * 0.58),
+               (x + w * 0.68, y + h * 0.58), (x + w, y + h)],
+              fill=(70, 70, 76))
+    d.line([(x + w * 0.47, y + h * 0.60), (x + w * 0.50, y + h)],
+           fill=(245, 200, 60), width=2)
+    # tanker: cylinder + cab
+    tx, ty = x + w * 0.42, y + h * 0.60
+    d.rounded_rectangle([tx, ty, tx + 96, ty + 30], radius=14,
+                        fill=(200, 200, 200), outline=INK, width=1)
+    d.polygon([(tx + 96, ty + 4), (tx + 128, ty + 10), (tx + 128, ty + 30),
+               (tx + 96, ty + 30)], fill=(176, 30, 36), outline=INK)
+    d.rectangle([tx + 8, ty + 30, tx + 20, ty + 38], fill=INK)
+    d.rectangle([tx + 78, ty + 30, tx + 90, ty + 38], fill=INK)
+    d.rectangle([tx + 112, ty + 30, tx + 122, ty + 38], fill=INK)
+    # flames
+    fx, fy = tx + 40, ty - 6
+    d.polygon([(fx - 26, fy + 8), (fx - 10, fy - 26), (fx, fy - 6),
+               (fx + 12, fy - 30), (fx + 26, fy + 8)], fill=ORANGE)
+    d.polygon([(fx - 14, fy + 8), (fx - 4, fy - 14), (fx + 4, fy - 2),
+               (fx + 14, fy + 8)], fill=YELLOW)
+    # smoke
+    for sx, sy, sr in [(tx - 6, ty - 34, 10), (tx + 8, ty - 48, 13),
+                       (tx + 26, ty - 60, 10)]:
+        d.ellipse([sx - sr, sy - sr, sx + sr, sy + sr], fill=(120, 120, 125))
+
+
+def illu_space(d, x, y, w, h):
+    """Tiangong over the Earth's limb, stars, one astronaut."""
+    d.rectangle([x, y, x + w, y + h], fill=(8, 12, 28))
+    import random
+    rnd = random.Random(2611)
+    for _ in range(46):
+        sx = x + rnd.random() * w
+        sy = y + rnd.random() * h * 0.55
+        sr = 1 if rnd.random() < 0.7 else 2
+        d.ellipse([sx - sr, sy - sr, sx + sr, sy + sr],
+                  fill=(255, 255, 255))
+    # Earth limb
+    d.ellipse([x - w * 0.45, y + h * 0.62, x + w * 1.45, y + h * 2.1],
+              fill=(42, 110, 180))
+    d.ellipse([x + w * 0.10, y + h * 0.70, x + w * 0.34, y + h * 0.86],
+              fill=(70, 150, 90))
+    d.ellipse([x + w * 0.55, y + h * 0.78, x + w * 0.78, y + h * 0.92],
+              fill=(70, 150, 90))
+    d.arc([x - w * 0.45, y + h * 0.62, x + w * 1.45, y + h * 2.1],
+          start=200, end=340, fill=(150, 210, 240), width=3)
+    # station: core module + panels
+    cx, cy = x + w * 0.52, y + h * 0.34
+    d.rectangle([cx - 88, cy - 12, cx - 18, cy + 12], fill=(31, 78, 121),
+                outline=(255, 255, 255), width=1)
+    d.rectangle([cx + 18, cy - 12, cx + 88, cy + 12], fill=(31, 78, 121),
+                outline=(255, 255, 255), width=1)
+    for gx in range(-88, 88, 14):
+        if -18 < gx < 18:
+            continue
+        d.line([(cx + gx, cy - 12), (cx + gx, cy + 12)],
+               fill=(150, 200, 240), width=1)
+    d.rounded_rectangle([cx - 18, cy - 16, cx + 18, cy + 16], radius=8,
+                        fill=(220, 220, 215), outline=INK, width=1)
+    d.ellipse([cx - 30, cy - 8, cx - 18, cy + 8], fill=(200, 200, 200),
+              outline=INK, width=1)
+    # astronaut on a tether
+    ax, ay = x + w * 0.78, y + h * 0.52
+    d.line([(cx + 14, cy + 14), (ax, ay - 12)], fill=(255, 255, 255),
+           width=1)
+    d.ellipse([ax - 7, ay - 16, ax + 7, ay - 2], fill=(255, 255, 255),
+              outline=INK, width=1)
+    d.rounded_rectangle([ax - 6, ay - 2, ax + 6, ay + 12], radius=3,
+                        fill=(255, 255, 255), outline=INK, width=1)
+    d.rectangle([ax - 9, ay + 12, ax - 4, ay + 20], fill=(255, 255, 255),
+                outline=INK, width=1)
+    d.rectangle([ax + 4, ay + 12, ax + 9, ay + 20], fill=(255, 255, 255),
+                outline=INK, width=1)
+
+
+def illu_mini_refinery(d, x, y, w, h):
+    d.rectangle([x, y, x + w, y + h], fill=(52, 44, 60))
+    d.rectangle([x + 8, y + h - 26, x + 30, y + h], fill=(90, 80, 100))
+    d.rectangle([x + 40, y + h - 38, x + 56, y + h], fill=(90, 80, 100))
+    d.ellipse([x + w - 34, y + h - 24, x + w - 8, y + h], fill=(120, 110, 130))
+    d.polygon([(x + 62, y + h - 8), (x + 70, y + h - 30), (x + 78, y + h - 8)],
+              fill=ORANGE)
+    d.polygon([(x + 66, y + h - 8), (x + 70, y + h - 20), (x + 74, y + h - 8)],
+              fill=YELLOW)
+    d.ellipse([x + w - 46, y + 6, x + w - 34, y + 18], fill=(245, 200, 60))
+
+
+def illu_mini_chart(d, x, y, w, h):
+    d.rectangle([x, y, x + w, y + h], fill=(16, 60, 44))
+    pts = [(x + 6, y + 12), (x + 30, y + 16), (x + 54, y + 12),
+           (x + 78, y + 22), (x + 102, y + 26), (x + 126, y + 34),
+           (x + 150, y + 40), (x + 174, y + 46)]
+    d.line(pts, fill=(230, 60, 50), width=3, joint="curve")
+    d.polygon([(x + 164, y + 38), (x + 182, y + 42), (x + 168, y + 52)],
+              fill=(230, 60, 50))
+    d.text((x + 8, y + h - 20), "–20%", font=SANS_B(16), fill=(255, 255, 255))
+
+
+def illu_mini_jet(d, x, y, w, h):
+    d.rectangle([x, y, x + w, y + h], fill=(168, 205, 230))
+    d.rectangle([x, y + h - 16, x + w, y + h], fill=(90, 90, 90))
+    d.line([(x, y + h - 16), (x + w, y + h - 16)], fill=(255, 255, 255),
+           width=1)
+    # jet silhouette
+    jx, jy = x + 40, y + 22
+    d.polygon([(jx, jy), (jx + 90, jy + 6), (jx + 96, jy + 10),
+               (jx + 40, jy + 12), (jx + 34, jy + 22), (jx + 26, jy + 12),
+               (jx + 8, jy + 10)], fill=(40, 40, 44))
+    # burst
+    bx, by = x + w - 30, y + 16
+    for ang in range(0, 360, 45):
+        import math
+        ex = bx + 12 * math.cos(math.radians(ang))
+        ey = by + 12 * math.sin(math.radians(ang))
+        d.line([(bx, by), (ex, ey)], fill=ORANGE, width=2)
+    d.ellipse([bx - 5, by - 5, bx + 5, by + 5], fill=YELLOW)
+
+
+def illu_mini_warning(d, x, y, w, h):
+    d.rectangle([x, y, x + w, y + h], fill=(31, 78, 121))
+    cx, cy = x + w // 2, y + h // 2 + 2
+    d.polygon([(cx, cy - 22), (cx + 24, cy + 16), (cx - 24, cy + 16)],
+              fill=YELLOW, outline=INK)
+    d.text((cx - 3, cy - 12), "!", font=SANS_B(22), fill=INK)
+    d.text((x + 8, y + 4), "LEAVE", font=SANS_B(11), fill=(255, 255, 255))
+
+
+def illu_mini_skyline(d, x, y, w, h):
+    d.rectangle([x, y, x + w, y + h], fill=(220, 200, 170))
+    for i, bh in enumerate([18, 30, 14, 26, 20]):
+        bx = x + 10 + i * 36
+        d.rectangle([bx, y + h - bh, bx + 28, y + h], fill=(70, 60, 66))
+    d.ellipse([x + w - 52, y + 4, x + w - 30, y + 26], fill=(150, 150, 155))
+    d.ellipse([x + w - 44, y + 12, x + w - 22, y + 34], fill=(170, 170, 175))
+    d.ellipse([x + w - 58, y + 16, x + w - 38, y + 36], fill=(150, 150, 155))
+
+
+def illu_mini_eu(d, x, y, w, h):
+    d.rectangle([x, y, x + w, y + h], fill=(31, 78, 121))
+    import math
+    cx, cy = x + 44, y + h // 2
+    for k in range(12):
+        ang = math.radians(k * 30 - 90)
+        sx = cx + 24 * math.cos(ang)
+        sy = cy + 24 * math.sin(ang)
+        d.ellipse([sx - 2, sy - 2, sx + 2, sy + 2], fill=YELLOW)
+    d.text((x + 82, y + h // 2 - 14), "€2tn", font=SERIF_B(26),
+           fill=(255, 255, 255))
+
+
+def illu_mini_bank(d, x, y, w, h):
+    d.rectangle([x, y, x + w, y + h], fill=(240, 235, 220))
+    d.polygon([(x + 20, y + 8), (x + w // 2, y + 22), (x + w - 20, y + 8)],
+              fill=(120, 40, 40))
+    for i in range(4):
+        bx = x + 30 + i * 36
+        d.rectangle([bx, y + 24, bx + 14, y + h - 8], fill=(220, 220, 215),
+                    outline=INK, width=1)
+    d.rectangle([x + 18, y + h - 10, x + w - 18, y + h - 4], fill=(120, 40, 40))
+    d.polygon([(x + w - 46, y + 12), (x + w - 30, y + 12), (x + w - 30, y + 22),
+               (x + w - 46, y + 22)], fill=GREEN)
+    d.text((x + w - 44, y + h - 26), "3.25%", font=SANS_B(13), fill=GREEN)
+
+
+def illu_mini_balloon(d, x, y, w, h):
+    d.rectangle([x, y, x + w, y + h], fill=(168, 205, 230))
+    d.ellipse([x + w - 70, y + 2, x + w - 34, y + 22], fill=(150, 150, 155))
+    d.ellipse([x + w - 52, y + 10, x + w - 22, y + 28], fill=(170, 170, 175))
+    bx, by = x + 52, y + 20
+    d.ellipse([bx - 22, by - 14, bx + 22, by + 14], fill=RED, outline=INK,
+              width=1)
+    d.line([(bx - 14, by + 12), (bx - 8, by + 26)], fill=INK, width=1)
+    d.line([(bx + 14, by + 12), (bx + 8, by + 26)], fill=INK, width=1)
+    d.rectangle([bx - 10, by + 26, bx + 10, by + 34], fill=BROWN,
+                outline=INK, width=1)
+
+
+def illu_mini_candle(d, x, y, w, h):
+    d.rectangle([x, y, x + w, y + h], fill=(52, 44, 60))
+    for i, bh in enumerate([20, 34, 16, 30, 22]):
+        bx = x + 12 + i * 36
+        d.rectangle([bx, y + h - bh, bx + 28, y + h], fill=(30, 28, 40))
+        for wy in range(2):
+            d.rectangle([bx + 6, y + h - bh + 5 + wy * 10,
+                         bx + 11, y + h - bh + 9 + wy * 10],
+                        fill=(245, 200, 60))
+    cx, cy = x + w - 44, y + 22
+    d.ellipse([cx - 8, cy - 12, cx + 8, cy + 6], fill=ORANGE)
+    d.ellipse([cx - 4, cy - 6, cx + 4, cy + 6], fill=YELLOW)
+    d.rectangle([cx - 6, cy + 6, cx + 6, cy + 20], fill=(240, 240, 235))
+
+
+def illu_mini_mountains(d, x, y, w, h):
+    d.rectangle([x, y, x + w, y + h], fill=(210, 226, 238))
+    d.polygon([(x, y + h), (x + 50, y + 10), (x + 100, y + h)],
+              fill=(90, 110, 140))
+    d.polygon([(x + 40, y + 22), (x + 50, y + 10), (x + 60, y + 22)],
+              fill=(255, 255, 255))
+    d.polygon([(x + 80, y + h), (x + 140, y + 18), (x + 190, y + h)],
+              fill=(70, 90, 120))
+    d.polygon([(x + 130, y + 30), (x + 140, y + 18), (x + 150, y + 30)],
+              fill=(255, 255, 255))
+    d.rectangle([x, y + h - 12, x + w, y + h], fill=(58, 110, 160))
+    d.line([(x, y + h - 12), (x + w, y + h - 12)], fill=(255, 255, 255),
+           width=1)
+
+
+def clipped_art(art, w, h):
+    """Render an illustration on its own layer so it can never spill
+    past its panel and cover neighbouring text."""
+    layer = Image.new("RGB", (int(w), int(h)), PAPER)
+    ld = ImageDraw.Draw(layer)
+    art(ld, 0, 0, w, h)
+    return layer
+
+
+# ---------------------------------------------------------------- content
+# Every fact below was checked against the 26 November 2026 day page
+# (One Turn, sourced to BBC, Reuters, The Guardian, Al Jazeera, Euronews,
+# Yonhap, CBC) and the Reuters world news summary of the same day.
+
+LEADS = [
+    {
+        "num": 1, "kicker": "WASHINGTON · TRADE", "art": illu_tariffs,
+        "head": "US proposes tariffs on 14 partners",
+        "deck": "India 25%, Japan 15%, China 20%. The EU rejects the "
+                "premise; Brazil calls it unacceptable.",
+        "src": "BBC · France 24",
+    },
+    {
+        "num": 2, "kicker": "CAIRO · DISASTER", "art": illu_cairo,
+        "head": "Tanker fire kills at least 31 on Cairo ring road",
+        "deck": "A tanker overturned and burst into flames. Cars burned; "
+                "21 hurt, no cause given.",
+        "src": "BBC · The Guardian",
+    },
+    {
+        "num": 3, "kicker": "TIANGONG · SPACE", "art": illu_space,
+        "head": "First foreign astronaut boards China's Tiangong",
+        "deck": "Pakistan's Muhammad Zeeshan Ali joins the Shenzhou-24 "
+                "crew for five days of experiments.",
+        "src": "The Guardian · BBC",
+    },
+]
+
+MINIS = [
+    {"num": 4, "kicker": "RIYADH · CONFLICT", "art": illu_mini_refinery,
+     "head": "Houthis hit Saudi ports and refinery",
+     "deck": "Riyadh says it downed drones and missiles; oil rose. — Al Jazeera"},
+    {"num": 5, "kicker": "NEW YORK · MARKETS", "art": illu_mini_chart,
+     "head": "AI sell-off pushes Nasdaq near bear market",
+     "deck": "S&P 500 fell 0.25%; Nvidia slid on Huang questions. — Sky News"},
+    {"num": 6, "kicker": "KYIV · WAR", "art": illu_mini_jet,
+     "head": "Ukraine hits airbase; Kyiv hit by missiles",
+     "deck": "Five jets hit at Savasleyka; a mall hit in Kyiv. — BBC"},
+    {"num": 7, "kicker": "TEHRAN · WARNING", "art": illu_mini_warning,
+     "head": "US tells citizens to leave Iran as war fears grow",
+     "deck": "Kushner confirmed meeting Iranian envoys. — Euronews"},
+    {"num": 8, "kicker": "GAZA CITY · CONFLICT", "art": illu_mini_skyline,
+     "head": "Israeli strikes kill Hamas security chief",
+     "deck": "Mohammed Abu al-Ouf killed; 11 more dead. — BBC"},
+    {"num": 9, "kicker": "BRUSSELS · EUROPE", "art": illu_mini_eu,
+     "head": "EU leaders meet over €2tn long-term budget",
+     "deck": "A deal is far from certain; Germany presses limits. — RFI"},
+    {"num": 10, "kicker": "SEOUL · ECONOMY", "art": illu_mini_bank,
+     "head": "Bank of Korea raises rate to 3.25%",
+     "deck": "Up 25 points, the highest in two years. — Yonhap"},
+    {"num": 11, "kicker": "NEW YORK · THANKSGIVING", "art": illu_mini_balloon,
+     "head": "Macy's postpones Thanksgiving parade",
+     "deck": "The 100th parade moves to Saturday on storm winds. — BBC"},
+    {"num": 12, "kicker": "HONG KONG · REMEMBRANCE", "art": illu_mini_candle,
+     "head": "Hong Kong marks a year since fire killed 168",
+     "deck": "No official memorial; families still await answers. — SCMP"},
+    {"num": 13, "kicker": "KATHMANDU · DISASTER", "art": illu_mini_mountains,
+     "head": "Nepal: 213 Indians missing presumed dead",
+     "deck": "Lost in flash floods; families asked to come forward. — The Hindu"},
+]
+
+ALSO = [
+    "Asian stocks rebound as tariffs look milder",
+    "King tides flood the California coast",
+    "Pig-kidney patient marks a year off dialysis",
+    "UK sends convicted refugees to Eswatini",
+    "Indonesia gold mine flood kills at least 13",
+    "ISIL attack kills two in north-east Syria",
+    "Brazil pulls its ambassador from Argentina",
+    "Iraq court takes control of Kurdistan oil",
+    "Australia set to miss its 2035 climate target",
+    "Flinders Island fire destroys at least six homes",
+    "Rare lakes found a mile beneath the Red Sea",
+    "U-17: African sides reach the last 32",
+    "Iowa Army blast destroys explosives stockpile",
+    "Bangladesh garment wage unrest shuts factories",
+    "Canary Islands: 2,000 migrants arrive in a day",
+    "Spain votes Sunday, with the right favoured",
+]
+
+REGIONS = [
+    ("ASIA-PACIFIC", 7, "1st", "foreigner in orbit", BLUE),
+    ("EUROPE", 4, "€2tn", "EU budget talks", (107, 63, 160)),
+    ("AMERICAS", 6, "–20%", "Nasdaq nears bear", TEAL),
+    ("MIDDLE EAST", 7, "2%", "oil jumps on strikes", DARKRED),
+    ("AFRICA", 2, "31", "killed in Cairo fire", BROWN),
+    ("OCEANIA", 2, "6", "homes lost, island fire", GREEN),
+    ("WORLDWIDE", 1, "14", "partners face tariffs", GREY),
+]
+
+DATE_CHECK = ("DATE CHECK — Every story here happened, or was first "
+              "reported, on Thursday 26 November 2026. LEFT OUT: Huawei "
+              "verdict, Senegal's Cup title, Huang's Nvidia return (all "
+              "Tue 24 Nov); SpaceX satellites, Kim's nuclear vow, "
+              "Colombia hostages (all Wed 25 Nov).")
+
+SOURCES = ("Sources: Reuters, AP, AFP, BBC, Al Jazeera, The Guardian, "
+           "Euronews, Yonhap, CBC, BBC Science · Pictures and map: "
+           "original, drawn in code · 2026-11-26")
+
+
+# ---------------------------------------------------------------- layout
+def build():
+    img = Image.new("RGB", (W, H), PAPER)
+    d = ImageDraw.Draw(img)
+    M = 14
+    CW = W - 2 * M  # 996
+
+    # outer border
+    d.rectangle([4, 4, W - 5, H - 5], outline=INK, width=2)
+
+    # ---- masthead
+    d.text((M, 10), "THE WORLD IN ONE DAY", font=SANS_B(20), fill=RED)
+    rt = "THURSDAY'S NEWS · ONE PAGE · 29 STORIES"
+    d.text((W - M - d.textlength(rt, font=SANS_R(13)), 13), rt,
+           font=SANS_R(13), fill=INK)
+    dt = "Thursday 26 November 2026"
+    dw = d.textlength(dt, font=SERIF_B(62))
+    d.text(((W - dw) / 2, 30), dt, font=SERIF_B(62), fill=INK)
+    sub = ("US tariffs hit 14 partners · Cairo tanker fire kills 31 · "
+           "First foreign astronaut boards Tiangong")
+    sw = d.textlength(sub, font=SERIF_I(21))
+    d.text(((W - sw) / 2, 102), sub, font=SERIF_I(21), fill=RED)
+    rule(d, M, 130, CW, fill=RED, width=3)
+
+    # ---- region strip
+    y0, rh = 138, 56
+    cw = CW / 7.0
+    for i, (name, count, big, label, col) in enumerate(REGIONS):
+        x = M + i * cw
+        d.rectangle([x + 1, y0, x + cw - 1, y0 + rh], fill=CARD_BG,
+                    outline=INK, width=1)
+        d.rectangle([x + 1, y0, x + cw - 1, y0 + 17], fill=col)
+        nw = d.textlength(name, font=SANS_B(10))
+        d.text((x + (cw - nw) / 2, y0 + 3), name, font=SANS_B(10),
+               fill=(255, 255, 255))
+        bw = d.textlength(big, font=SERIF_B(26))
+        d.text((x + (cw - bw) / 2, y0 + 19), big, font=SERIF_B(26),
+               fill=INK)
+        lw = d.textlength(label, font=SANS_R(9))
+        d.text((x + (cw - lw) / 2, y0 + 45), label, font=SANS_R(9),
+               fill=GREY)
+
+    # ---- lead cards
+    ly, lh = 202, 296
+    lw3 = (CW - 2 * 9) / 3.0
+    for i, lead in enumerate(LEADS):
+        x = M + i * (lw3 + 9)
+        d.rectangle([x, ly, x + lw3, ly + lh], fill=CARD_BG, outline=INK,
+                    width=1)
+        img.paste(clipped_art(lead["art"], lw3 - 2, 148), (int(x + 1),
+                                                           ly + 1))
+        d.rectangle([x, ly + 149, x + lw3, ly + 150], fill=RED)
+        kx, ky = x + 8, ly + 158
+        d.text((kx, ky), "%d  %s" % (lead["num"], lead["kicker"]),
+               font=SANS_B(12), fill=RED)
+        hy = ky + 18
+        lines = fit_lines(d, lead["head"], SERIF_B(27), lw3 - 16, 2)
+        hy = text_lines(d, kx, hy, lines, SERIF_B(27), INK, leading=30)
+        dy = hy + 6
+        dlines = fit_lines(d, lead["deck"], SERIF_R(14), lw3 - 16, 2)
+        dy = text_lines(d, kx, dy, dlines, SERIF_R(14), INK, leading=17)
+        assert dy + 16 <= ly + lh, "lead %d overflows" % lead["num"]
+        d.text((kx, dy + 2), "— " + lead["src"], font=SANS_R(10),
+               fill=GREY)
+
+    # ---- mini cards, two rows of five
+    my, mh, mgap = 506, 142, 8
+    mw = (CW - 4 * 8) / 5.0
+    for row in range(2):
+        for col in range(5):
+            m = MINIS[row * 5 + col]
+            x = M + col * (mw + 8)
+            y = my + row * (mh + mgap)
+            d.rectangle([x, y, x + mw, y + mh], fill=CARD_BG, outline=INK,
+                        width=1)
+            img.paste(clipped_art(m["art"], mw - 2, 54), (int(x + 1), y + 1))
+            kx, ky = x + 7, y + 61
+            d.text((kx, ky), "%d  %s" % (m["num"], m["kicker"]),
+                   font=SANS_B(10), fill=RED)
+            hy = ky + 14
+            lines = fit_lines(d, m["head"], SANS_B(14), mw - 14, 2)
+            hy = text_lines(d, kx, hy, lines, SANS_B(14), INK, leading=16)
+            dlines = fit_lines(d, m["deck"], SERIF_R(11), mw - 14, 2)
+            end = text_lines(d, kx, hy + 3, dlines, SERIF_R(11), GREY,
+                             leading=13)
+            assert end <= y + mh - 4, "mini %d overflows" % m["num"]
+
+    # ---- map band + also list
+    by = 806
+    d.text((M, by), "WHERE IT HAPPENED", font=SANS_B(15), fill=RED)
+    ax = M + 486
+    d.text((ax, by), "ALSO ON THURSDAY 26 NOVEMBER", font=SANS_B(15),
+           fill=RED)
+    rule(d, M, by + 20, CW, width=1)
+    draw_map(d, M, by + 26, 470, 116)
+    cap = "Red numbers mark stories 1–13. Positions are approximate."
+    d.text((M, by + 146), cap, font=SANS_R(10), fill=GREY)
+    # also list, two columns
+    colw = (W - M - ax - 8) / 2.0
+    for i, item in enumerate(ALSO):
+        c = i // 8
+        r = i % 8
+        ix = ax + c * colw
+        iy = by + 28 + r * 15
+        d.rectangle([ix, iy + 3, ix + 7, iy + 10], fill=RED)
+        d.text((ix + 11, iy), item, font=SERIF_R(12), fill=INK)
+
+    # ---- date check
+    dy0 = 960
+    d.rectangle([M, dy0, W - M, dy0 + 36], outline=RED, width=2)
+    dlines = wrap(d, DATE_CHECK, SANS_B(11), CW - 20)
+    assert len(dlines) <= 2, "date check wraps to %d lines" % len(dlines)
+    text_lines(d, M + 10, dy0 + 5, dlines, SANS_B(11), DARKRED,
+               leading=14)
+
+    # ---- sources
+    sw = d.textlength(SOURCES, font=SANS_R(10))
+    d.text(((W - sw) / 2, 1004), SOURCES, font=SANS_R(10), fill=GREY)
+
+    return img
+
+
+if __name__ == "__main__":
+    build().save("entry.png", optimize=True)
+    import os
+    print("wrote entry.png", os.path.getsize("entry.png"), "bytes")
