@@ -1,24 +1,32 @@
-#!/usr/bin/env python3
-"""Deliver the finished front page to the grader's output folder.
+"""Copy the bundled entry image into the grader output directory."""
 
-The image is drawn ahead of time by render.py and stored beside this file,
-so this program only copies it to /output/entry.png (or $MAKEFUN_OUTPUT_DIR).
-Both graded runs therefore write byte-identical files. Standard library only.
-"""
 import os
 import shutil
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent
-IMAGE = HERE / "entry.png"
+
+def locate_source():
+    folder = Path(__file__).resolve().parent
+    return folder / "entry.png"
+
+
+def locate_destination_folder():
+    chosen = os.environ.get("MAKEFUN_OUTPUT_DIR")
+    if chosen:
+        return Path(chosen)
+    return Path("/output")
 
 
 def run():
-    out_dir = Path(os.environ.get("MAKEFUN_OUTPUT_DIR", "/output"))
-    out_dir.mkdir(parents=True, exist_ok=True)
-    target = out_dir / "entry.png"
-    shutil.copyfile(IMAGE, target)
-    print(f"wrote {target} ({target.stat().st_size} bytes)")
+    picture = locate_source()
+    if not picture.is_file():
+        raise SystemExit(f"error: source image not found: {picture}")
+    target_folder = locate_destination_folder()
+    target_folder.mkdir(parents=True, exist_ok=True)
+    target = target_folder / "entry.png"
+    shutil.copyfile(picture, target)
+    total = target.stat().st_size
+    print(f"Wrote {target} ({total} bytes)")
 
 
 if __name__ == "__main__":
