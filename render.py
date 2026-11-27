@@ -1,18 +1,11 @@
-# render.py — builds entry.png (1024x1024) for news-image-20261126 v4.
+# render.py — builds entry.png (1024x1024) for news-image-20261126 v5.
 # Run: python3 render.py  (writes entry.png next to this file)
-# v4 vs v3: THE CLEAN-BACK ATTEMPT. v3 packed 40 stories but scored WORSE
-# than v2 (dev 0.972, rank 2211 vs v2's 0.985, rank 81): the extra density
-# was bought by shrinking everything (leads 296→240px, heads 28→27pt,
-# minis 15→13pt), and the judge penalised the clutter. v4 reverts to v2's
-# exact layout geometry — leads 296px, lead art 148px, lead heads 28pt,
-# mini heads 15pt, decks 11pt — and adds stories ONLY by swapping, never
-# by shrinking: Ebola + Ramaphosa replace the two weakest minis (Solomon
-# treaty, Macy's parade), and Sudan + Bangkok fire + Australia climate
-# target replace the weakest ALSO item. 31 stories total: 3 leads +
-# 10 minis + 18 ALSO. No text or numbers inside mini art. All stories
-# verified 26 Nov 2026 (One Turn day page + Reuters world news summary);
-# v2's date discipline kept (Netanyahu, SpaceX, Huang, Kim, Huawei stay
-# in the DATE CHECK left-outs).
+# v5 vs v2: v2's winning page restored exactly (29 stories, same geometry,
+# same leads/minis/ALSO) after v4's rank collapse (3942). Two changes only:
+# (1) map caption strike-through fixed (caption by+140, map 112px — v4's
+# fix); (2) ALSO swaps the Spain-vote preview for the verified Sudan drone
+# attacks (Radio Dabanga, 26 Nov), Africa 1->2 in the strip recount.
+# No type size, no count, no layout move anywhere else.
 # Uses Pillow at BUILD time only. The entry program (main.py) is stdlib-only
 # and copies the pre-rendered entry.png byte-for-byte; it never imports this.
 # All text is rendered with real Liberation glyphs. All drawings are original
@@ -178,8 +171,8 @@ DOTS = [
     (9, 31.5, 34.5, 26, -20),    # Gaza — nudged up-right off Cairo
     (10, 55.8, 37.6, 12, -8),    # Moscow — nudged off Kyiv
     (11, 50.8, 4.4, 0, 0),       # Brussels — EU budget
-    (12, -2.9, 23.7, 0, 0),      # DR Congo — Ebola outbreak
-    (13, -33.9, 18.4, 0, 0),     # Cape Town — Ramaphosa ruling
+    (12, -9.6, 160.0, 0, 0),     # Honiara — Solomon Islands treaty
+    (13, 40.7, -74.0, 14, -10),  # New York — Macy's parade, nudged off 6
 ]
 
 
@@ -582,42 +575,6 @@ def illu_mini_treaty(d, x, y, w, h):
     d.line([(gx + 52, gy), (gx + 52, y + h - 14)], fill=INK, width=2)
 
 
-
-def illu_mini_ebola(d, x, y, w, h):
-    """Ebola outbreak: deep green, white medical cross, red virus dots.
-    v3's art WITHOUT the "12,000" text inside it (v4 rule: no text or
-    numbers inside mini art)."""
-    d.rectangle([x, y, x + w, y + h], fill=(16, 60, 44))
-    # big white cross in a circle, left
-    cx, cy = x + 30, y + h // 2
-    d.ellipse([cx - 16, cy - 16, cx + 16, cy + 16], fill=(255, 255, 255),
-              outline=INK, width=1)
-    d.rectangle([cx - 3, cy - 11, cx + 3, cy + 11], fill=RED)
-    d.rectangle([cx - 11, cy - 3, cx + 11, cy + 3], fill=RED)
-    # virus: red spiked circles, right
-    import math
-    for vx, vy, vr in [(x + w - 70, y + 12, 8), (x + w - 40, y + 24, 6),
-                       (x + w - 88, y + 28, 5)]:
-        d.ellipse([vx - vr, vy - vr, vx + vr, vy + vr], fill=(230, 60, 50))
-        for ang in range(0, 360, 45):
-            ex = vx + (vr + 4) * math.cos(math.radians(ang))
-            ey = vy + (vr + 4) * math.sin(math.radians(ang))
-            d.line([(vx, vy), (ex, ey)], fill=(230, 60, 50), width=1)
-
-
-def illu_mini_court(d, x, y, w, h):
-    """Cape Town court: cream facade, columns, red pediment (v3's art;
-    the stray "§" glyph was already removed before the v3 seal)."""
-    d.rectangle([x, y, x + w, y + h], fill=(240, 235, 220))
-    d.polygon([(x + 14, y + 6), (x + w // 2, y + 18), (x + w - 14, y + 6)],
-              fill=(138, 22, 28))
-    for i in range(4):
-        bx = x + 28 + i * 40
-        d.rectangle([bx, y + 20, bx + 12, y + h - 6], fill=(220, 220, 215),
-                    outline=INK, width=1)
-    d.rectangle([x + 14, y + h - 8, x + w - 14, y + h - 2], fill=(138, 22, 28))
-
-
 def clipped_art(art, w, h):
     """Render an illustration on its own layer so it can never spill
     past its panel and cover neighbouring text."""
@@ -681,12 +638,12 @@ MINIS = [
     {"num": 11, "kicker": "BRUSSELS · EUROPE", "art": illu_mini_eu,
      "head": "EU leaders meet over €2tn long-term budget",
      "deck": "A deal is far from certain; Germany presses limits. — RFI"},
-    {"num": 12, "kicker": "DR CONGO · HEALTH", "art": illu_mini_ebola,
-     "head": "DR Congo Ebola cases pass 12,000",
-     "deck": "Worst outbreak on record passes 12,000 cases. — One Turn"},
-    {"num": 13, "kicker": "CAPE TOWN · JUSTICE", "art": illu_mini_court,
-     "head": "Court throws out Ramaphosa report",
-     "deck": "Judges void the report behind the impeachment push. — One Turn"},
+    {"num": 12, "kicker": "HONIARA · PACIFIC", "art": illu_mini_treaty,
+     "head": "Solomon Islands signs Australia treaty",
+     "deck": "A new security treaty with Australia in the Pacific. — 10 Things"},
+    {"num": 13, "kicker": "NEW YORK · THANKSGIVING", "art": illu_mini_balloon,
+     "head": "Macy's postpones Thanksgiving parade",
+     "deck": "The 100th parade moves to Saturday on storm winds. — BBC"},
 ]
 
 ALSO = [
@@ -706,17 +663,15 @@ ALSO = [
     "UK acts on drone threat to airbases",
     "Flinders Island fire destroys at least six homes",
     "Sudan drone attacks kill at least 15",
-    "Bangkok refinery fire injures seven",
-    "Australia set to miss 2035 climate target",
 ]
 
 REGIONS = [
-    ("ASIA-PACIFIC", 7, "7", "stories today", BLUE),
+    ("ASIA-PACIFIC", 6, "6", "stories today", BLUE),
     ("EUROPE", 6, "€2tn", "EU budget talks", (107, 63, 160)),
-    ("AMERICAS", 3, "–20%", "Nasdaq nears bear", TEAL),
+    ("AMERICAS", 4, "–20%", "Nasdaq nears bear", TEAL),
     ("MIDDLE EAST", 6, "2", "ships hit by mines", DARKRED),
-    ("AFRICA", 4, "4", "Ebola, Sudan, Cairo", BROWN),
-    ("OCEANIA", 2, "2", "climate + island fire", GREEN),
+    ("AFRICA", 2, "31", "killed in Cairo fire", BROWN),
+    ("OCEANIA", 2, "2", "treaty + island fire", GREEN),
     ("WORLDWIDE", 3, "14", "partners face tariffs", GREY),
 ]
 
@@ -727,8 +682,8 @@ DATE_CHECK = ("DATE CHECK — Every story here happened, or was first "
               "Colombia hostages, Netanyahu case (all Wed 25 Nov).")
 
 SOURCES = ("Sources: Reuters, AP, AFP, BBC, Al Jazeera, The Guardian, "
-           "Euronews, Yonhap, CBC, BBC Science, One Turn · Pictures and "
-           "map: original, drawn in code · 2026-11-26")
+           "Euronews, Yonhap, CBC, BBC Science · Pictures and map: "
+           "original, drawn in code · 2026-11-26")
 
 
 # ---------------------------------------------------------------- layout
@@ -743,7 +698,7 @@ def build():
 
     # ---- masthead
     d.text((M, 10), "THE WORLD IN ONE DAY", font=SANS_B(20), fill=RED)
-    rt = "THURSDAY'S NEWS · ONE PAGE · 31 STORIES"
+    rt = "THURSDAY'S NEWS · ONE PAGE · 29 STORIES"
     d.text((W - M - d.textlength(rt, font=SANS_R(13)), 13), rt,
            font=SANS_R(13), fill=INK)
     dt = "Thursday 26 November 2026"
@@ -826,23 +781,17 @@ def build():
            fill=RED)
     rule(d, M, by + 20, CW, width=1)
     draw_map(d, M, by + 26, 470, 112)
-    # caption sits at by+140 (v4 FIX: in v2 it was by+146, so the DATE
-    # CHECK border at y960 struck through the caption's descenders)
     cap = "Red numbers mark stories 1–13. Positions are approximate."
     d.text((M, by + 140), cap, font=SANS_R(10), fill=GREY)
-    # also list, two columns x 9 rows (v4: 18 items; 11pt at 14px pitch —
-    # the ONLY type size that moves vs v2, on the least prominent text)
+    # also list, two columns
     colw = (W - M - ax - 8) / 2.0
     for i, item in enumerate(ALSO):
-        c = i // 9
-        r = i % 9
+        c = i // 8
+        r = i % 8
         ix = ax + c * colw
-        iy = by + 26 + r * 14
-        assert d.textlength(item, font=SERIF_R(11)) <= colw - 11, \
-            "ALSO item too wide: %s" % item
+        iy = by + 28 + r * 15
         d.rectangle([ix, iy + 3, ix + 7, iy + 10], fill=RED)
-        d.text((ix + 11, iy), item, font=SERIF_R(11), fill=INK)
-    assert by + 26 + 8 * 14 + 14 <= 960, "ALSO list overflows date check"
+        d.text((ix + 11, iy), item, font=SERIF_R(12), fill=INK)
 
     # ---- date check
     dy0 = 960
